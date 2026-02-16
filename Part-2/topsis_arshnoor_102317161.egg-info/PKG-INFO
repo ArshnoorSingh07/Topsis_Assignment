@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: topsis-arshnoor-102317161
+Version: 1.0.0
+Author: Arshnoor Singh
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: openpyxl
+Dynamic: author
+Dynamic: requires-dist
