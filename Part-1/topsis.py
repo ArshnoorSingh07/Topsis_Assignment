@@ -5,8 +5,7 @@ import sys
 
 def main():
 
-    # taking command line inputs
-    parser = argparse.ArgumentParser(description="TOPSIS program")
+    parser = argparse.ArgumentParser(description="TOPSIS tool")
 
     parser.add_argument("input_file")
     parser.add_argument("weights")
@@ -20,7 +19,7 @@ def main():
     impacts = args.impacts
     output_file = args.output_file
 
-    # -------- read file --------
+    # READ FILE
     try:
         if input_file.endswith(".csv"):
             df = pd.read_csv(input_file)
@@ -33,84 +32,83 @@ def main():
         print("Error: File not found")
         sys.exit(1)
 
-    # remove empty columns
+    # clean empty columns
     df = df.dropna(axis=1, how='all')
     df.columns = df.columns.str.strip()
 
     # must have at least 3 columns
     if df.shape[1] < 3:
-        print("Error: File must contain 3 or more columns")
+        print("Error: File must have 3 or more columns")
         sys.exit(1)
 
-    # first column = names, rest numeric
-    data = df.iloc[:, 1:]
+    criteria_data = df.iloc[:, 1:]
 
-    if data.apply(pd.to_numeric, errors='coerce').isnull().values.any():
+    # convert to numeric
+    try:
+        criteria_data = criteria_data.astype(float)
+    except:
         print("Error: From 2nd column onwards must be numeric")
         sys.exit(1)
 
-    # split weights and impacts
-    weights_list = weights.split(',')
-    impacts_list = impacts.split(',')
+    # split weights & impacts
+    weights_list = [w.strip() for w in weights.split(',')]
+    impacts_list = [i.strip() for i in impacts.split(',')]
 
-    n = df.shape[1] - 1
+    criteria_count = df.shape[1] - 1
 
-    # check counts match
-    if not (len(weights_list) == len(impacts_list) == n):
-        print("Error: Weights, impacts and columns must be same count")
+    if not (len(weights_list) == len(impacts_list) == criteria_count):
+        print("Error: weights, impacts and columns must match")
         sys.exit(1)
 
-    # impacts must be + or -
     for i in impacts_list:
         if i not in ['+', '-']:
-            print("Error: Impacts must be + or -")
+            print("Error: impacts must be + or -")
             sys.exit(1)
 
-    # convert weights to float
     try:
-        weights_list = [float(i) for i in weights_list]
+        weights_list = [float(w) for w in weights_list]
     except:
-        print("Error: Weights must be numeric")
+        print("Error: weights must be numeric")
         sys.exit(1)
 
-    # -------- TOPSIS steps --------
-    matrix = data.astype(float).values
+    # TOPSIS 
+    matrix = criteria_data.values
 
     # normalize
-    norm = matrix / np.sqrt((matrix**2).sum(axis=0))
+    norm_matrix = matrix / np.sqrt((matrix**2).sum(axis=0))
 
     # multiply weights
-    weighted = norm * weights_list
+    weighted_matrix = norm_matrix * weights_list
 
-    # ideal best and worst
-    best = []
-    worst = []
+    # ideal best & worst
+    ideal_best = []
+    ideal_worst = []
 
-    for i in range(n):
+    for i in range(criteria_count):
         if impacts_list[i] == '+':
-            best.append(weighted[:, i].max())
-            worst.append(weighted[:, i].min())
+            ideal_best.append(weighted_matrix[:, i].max())
+            ideal_worst.append(weighted_matrix[:, i].min())
         else:
-            best.append(weighted[:, i].min())
-            worst.append(weighted[:, i].max())
+            ideal_best.append(weighted_matrix[:, i].min())
+            ideal_worst.append(weighted_matrix[:, i].max())
 
-    best = np.array(best)
-    worst = np.array(worst)
+    ideal_best = np.array(ideal_best)
+    ideal_worst = np.array(ideal_worst)
 
     # distance
-    d_best = np.sqrt(((weighted - best)**2).sum(axis=1))
-    d_worst = np.sqrt(((weighted - worst)**2).sum(axis=1))
+    dist_best = np.sqrt(((weighted_matrix - ideal_best)**2).sum(axis=1))
+    dist_worst = np.sqrt(((weighted_matrix - ideal_worst)**2).sum(axis=1))
 
     # score
-    score = d_worst / (d_best + d_worst)
+    scores = dist_worst / (dist_best + dist_worst)
 
-    # rank
-    rank = score.argsort()[::-1] + 1
+    # correct ranking
+    ranks = pd.Series(scores).rank(method='max', ascending=False).astype(int)
 
-    df["Topsis Score"] = score
-    df["Rank"] = rank
+    df['Topsis Score'] = scores
+    df['Rank'] = ranks
 
-    # save output
+    #SAVE 
     try:
         if output_file.endswith(".csv"):
             df.to_csv(output_file, index=False)
